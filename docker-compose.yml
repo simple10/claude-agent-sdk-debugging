@@ -1,0 +1,32 @@
+services:
+  proxy:
+    build: ./proxy
+    ports:
+      - "8081:8081"   # mitmproxy web UI
+    volumes:
+      - mitmproxy-certs:/home/mitmproxy/.mitmproxy
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8081/"]
+      interval: 2s
+      timeout: 5s
+      retries: 15
+
+  claude:
+    build: ./claude
+    network_mode: "service:proxy"
+    depends_on:
+      proxy:
+        condition: service_healthy
+    cap_add:
+      - NET_ADMIN   # required for iptables
+    environment:
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - HTTP_PROXY=http://localhost:8080
+      - HTTPS_PROXY=http://localhost:8080
+      - NO_PROXY=localhost,127.0.0.1
+    volumes:
+      - ./app:/app
+      - mitmproxy-certs:/certs:ro
+
+volumes:
+  mitmproxy-certs:
