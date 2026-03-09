@@ -40,10 +40,15 @@ fi
 # Set up iptables: redirect stray HTTP/HTTPS to transparent proxy port
 # Skip mitmproxy's own traffic (UID 1000) to avoid redirect loops
 echo "==> Setting up iptables rules..."
+# IPv4
 iptables -t nat -A OUTPUT -m owner --uid-owner 1000 -j RETURN
 iptables -t nat -A OUTPUT -p tcp --dport 80  -j REDIRECT --to-port 8085
 iptables -t nat -A OUTPUT -p tcp --dport 443 -j REDIRECT --to-port 8085
-echo "==> iptables configured."
+# IPv6
+ip6tables -t nat -A OUTPUT -m owner --uid-owner 1000 -j RETURN
+ip6tables -t nat -A OUTPUT -p tcp --dport 80  -j REDIRECT --to-port 8085
+ip6tables -t nat -A OUTPUT -p tcp --dport 443 -j REDIRECT --to-port 8085
+echo "==> iptables configured (IPv4 + IPv6)."
 
 # Install dependencies
 echo "==> Installing dependencies..."

@@ -36,6 +36,8 @@ services:
     cap_add:
       - NET_ADMIN   # required for iptables
     environment:
+      # Disable telemetry data (datadog, sentry, feedback, etc) in claude SDK
+      - CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
       - MITMPROXY_WEB_PASSWORD=${MITMPROXY_WEB_PASSWORD:-mitmpass}
       - HTTP_PROXY=http://localhost:8080
