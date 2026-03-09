@@ -1,7 +1,21 @@
 services:
   proxy:
     build: ./proxy
+    command:
+      - mitmweb
+      - --mode
+      - regular@8080
+      - --mode
+      - transparent@8085
+      - --web-host
+      - "0.0.0.0"
+      - --web-port
+      - "8081"
+      - --set
+      - web_password=${MITMPROXY_WEB_PASSWORD:-mitmpass}
+      - --verbose
     ports:
+      - "3000:3000"   # chat UI (runs in claude container, shared network)
       - "8081:8081"   # mitmproxy web UI
     environment:
       - PYTHONUNBUFFERED=1
@@ -23,6 +37,7 @@ services:
       - NET_ADMIN   # required for iptables
     environment:
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - MITMPROXY_WEB_PASSWORD=${MITMPROXY_WEB_PASSWORD:-mitmpass}
       - HTTP_PROXY=http://localhost:8080
       - HTTPS_PROXY=http://localhost:8080
       - NO_PROXY=localhost,127.0.0.1
