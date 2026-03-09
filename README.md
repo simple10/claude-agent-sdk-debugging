@@ -29,7 +29,7 @@ Includes a web-based chat interface for interacting with the SDK and a proxy UI 
 
 ## How It Works
 
-```
+```text
 ┌─────────────────────────────────────────────────────┐
 │  Shared network namespace (network_mode: service)   │
 │                                                     │
