@@ -48,5 +48,27 @@ services:
       - mitmproxy-certs:/certs:ro
       - ./credentials.json:/credentials/.credentials.json:ro
 
+  claude-code:
+    build: ./claude-code
+    profiles: ["cli"]
+    network_mode: "service:proxy"
+    depends_on:
+      proxy:
+        condition: service_healthy
+    cap_add:
+      - NET_ADMIN
+    stdin_open: true
+    tty: true
+    environment:
+      - CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - HTTP_PROXY=http://localhost:8080
+      - HTTPS_PROXY=http://localhost:8080
+      - NO_PROXY=localhost,127.0.0.1
+    volumes:
+      - mitmproxy-certs:/certs:ro
+      - claude-code-home:/root
+
 volumes:
   mitmproxy-certs:
+  claude-code-home:

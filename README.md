@@ -1,8 +1,8 @@
-# Claude SDK Spy
+# Claude Agent SDK & Claude Code Spy
 
-A Docker Compose setup that runs the [Claude Agent SDK](https://docs.anthropic.com/en/docs/claude-code/sdk) behind an [mitmproxy](https://mitmproxy.org/) sidecar, capturing **all** HTTP/HTTPS traffic for inspection.
+A Docker Compose setup that runs the [Claude Agent SDK](https://docs.anthropic.com/en/docs/claude-code/sdk) and [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code) behind an [mitmproxy](https://mitmproxy.org/) sidecar, capturing **all** HTTP/HTTPS traffic for inspection.
 
-Includes a web-based chat interface for interacting with the SDK and a proxy UI for viewing captured requests/responses.
+Includes a web-based chat interface for interacting with the Agent SDK, a Claude Code CLI container, and a proxy UI for viewing captured requests/responses.
 
 ## Quick Start
 
@@ -22,13 +22,21 @@ Includes a web-based chat interface for interacting with the SDK and a proxy UI 
    security find-generic-password -s "Claude Code-credentials" -w > credentials.json
    ```
 
-2. Start the stack:
+2. Start the Agent SDK chat UI:
 
    ```bash
    docker compose up -d --build
    ```
 
-3. Open the UIs:
+3. Or start a Claude Code CLI session (proxy starts automatically):
+
+   ```bash
+   ./claude-code.sh
+   ```
+
+   On first run, Claude will prompt you to log in. Credentials are persisted in a Docker volume so you only need to log in once. Local credentials.json is not used.
+
+4. Open the UIs:
 
    - **Chat UI:** [http://localhost:3000](http://localhost:3000)
    - **Proxy UI:** [http://localhost:8081/?token=mitmpass](http://localhost:8081/?token=mitmpass)
@@ -50,15 +58,14 @@ Includes a web-based chat interface for interacting with the SDK and a proxy UI 
 │  Shared network namespace (network_mode: service)   │
 │                                                     │
 │  ┌──────────────┐         ┌──────────────────────┐  │
-│  │   claude     │         │   proxy (mitmproxy)  │  │
-│  │              │         │                      │  │
-│  │  Bun app     │ HTTPS_  │  :8080 explicit      │  │
-│  │  :3000 chat  │─PROXY──▶│  :8085 transparent   │  │
-│  │              │         │  :8081 web UI        │  │
-│  └──────────────┘         └──────────────────────┘  │
-│        │                          ▲                 │
-│        │    iptables REDIRECT     │                 │
-│        └──────────────────────────┘                 │
+│  │  claude      │         │   proxy (mitmproxy)  │  │
+│  │  :3000 chat  │─PROXY──▶│  :8080 explicit      │  │
+│  └──────────────┘    │    │  :8085 transparent   │  │
+│                      │    │  :8081 web UI        │  │
+│  ┌──────────────┐    │    └──────────────────────┘  │
+│  │  claude-code │    │            ▲                 │
+│  │  (cli, opt.) │────┘    iptables│REDIRECT         │
+│  └──────────────┘─────────────────┘                 │
 │         (catches traffic ignoring proxy env vars)   │
 └─────────────────────────────────────────────────────┘
 ```
@@ -76,12 +83,16 @@ Includes a web-based chat interface for interacting with the SDK and a proxy UI 
 │   └── package.json
 ├── claude/
 │   ├── Dockerfile        # Bun image + iptables + CA cert tools
-│   └── entrypoint.sh     # CA cert install, iptables setup, app launch
+│   └── entrypoint.sh     # CA cert install, credentials, iptables, app launch
+├── claude-code/
+│   ├── Dockerfile        # Node 22 image + Claude Code CLI
+│   └── entrypoint.sh     # CA cert install, iptables, exec claude
 ├── proxy/
 │   └── Dockerfile        # mitmproxy image
+├── claude-code.sh        # Wrapper script to launch CLI session
 ├── docker-compose.yml
 ├── .env.example
-└── credentials.json      # (optional) OAuth credentials, gitignored
+└── credentials.json      # (optional) OAuth credentials for Agent SDK, gitignored
 ```
 
 ## Configuration
@@ -91,7 +102,9 @@ Includes a web-based chat interface for interacting with the SDK and a proxy UI 
 | `ANTHROPIC_API_KEY` | &mdash; | API key for the Claude SDK |
 | `MITMPROXY_WEB_PASSWORD` | `mitmpass` | Password for the mitmproxy web UI (`?token=` param) |
 
-Alternatively, place a `credentials.json` file in the project root for OAuth-based authentication. If present, it takes priority over `ANTHROPIC_API_KEY`.
+Alternatively, place a `credentials.json` file in the project root for OAuth-based authentication (Agent SDK container only). If present, it takes priority over `ANTHROPIC_API_KEY`.
+
+The Claude Code CLI container uses a persistent Docker volume for `/root`, so you log in once via `./claude-code.sh` and credentials survive `docker compose down`/`up`.
 
 ## Disabling SDK Telemetry
 
