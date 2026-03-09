@@ -36,4 +36,4 @@ ip6tables -t nat -A OUTPUT -p tcp --dport 80  -j REDIRECT --to-port 8085
 ip6tables -t nat -A OUTPUT -p tcp --dport 443 -j REDIRECT --to-port 8085
 echo "==> iptables configured (IPv4 + IPv6)."
 
-exec "$@"
+exec claude "$@"
