@@ -14,6 +14,14 @@ Includes a web-based chat interface for interacting with the SDK and a proxy UI 
 
    Set either `ANTHROPIC_API_KEY` or place a `credentials.json` file in the project root (credentials.json takes priority).
 
+   ```bash
+   # Re-use your existing claude code credentials (optional)
+   cp ~/.claude/.credentials.json credentials.json
+
+   # Or if you're on a mac, dump the credentials from keychain
+   security find-generic-password -s "Claude Code-credentials" -w > credentials.json
+   ```
+
 2. Start the stack:
 
    ```bash
