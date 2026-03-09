@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Skill(claude-api)",
+      "Bash(docker build:*)",
+      "Bash(docker compose:*)",
+      "Bash(docker run:*)",
+      "Bash(grep:*)"
+    ]
+  }
+}
