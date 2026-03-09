@@ -35,6 +35,14 @@ Includes a web-based chat interface for interacting with the SDK and a proxy UI 
 
    > If you change `MITMPROXY_WEB_PASSWORD` in your `.env`, update the `?token=` value in the Proxy UI URL to match.
 
+<p align="center">
+  <img src="docs/assets/chat-screenshot.png" alt="Chat UI" width="700">
+</p>
+
+<p align="center">
+  <img src="docs/assets/proxy-screenshot.png" alt="Proxy UI" width="700">
+</p>
+
 ## How It Works
 
 ```text
