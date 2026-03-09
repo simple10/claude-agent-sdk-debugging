@@ -23,6 +23,20 @@ update-ca-certificates
 # Set NODE_EXTRA_CA_CERTS for bun/node
 export NODE_EXTRA_CA_CERTS="$CERT_PATH"
 
+# Credentials: prefer credentials.json over ANTHROPIC_API_KEY
+# The CLI expects the file at $CLAUDE_CONFIG_DIR/.credentials.json (dot prefix)
+CREDS_PATH="/credentials/.credentials.json"
+if [ -f "$CREDS_PATH" ]; then
+  echo "==> Using credentials.json for authentication (via CLAUDE_CONFIG_DIR)"
+  export CLAUDE_CONFIG_DIR="/credentials"
+  unset ANTHROPIC_API_KEY 2>/dev/null || true
+elif [ -n "${ANTHROPIC_API_KEY:-}" ]; then
+  echo "==> Using ANTHROPIC_API_KEY for authentication"
+else
+  echo "ERROR: No credentials.json or ANTHROPIC_API_KEY provided"
+  exit 1
+fi
+
 # Set up iptables: redirect stray HTTP/HTTPS to transparent proxy port
 # Skip mitmproxy's own traffic (UID 1000) to avoid redirect loops
 echo "==> Setting up iptables rules..."

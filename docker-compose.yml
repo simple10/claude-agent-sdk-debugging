@@ -3,10 +3,12 @@ services:
     build: ./proxy
     ports:
       - "8081:8081"   # mitmproxy web UI
+    environment:
+      - PYTHONUNBUFFERED=1
     volumes:
       - mitmproxy-certs:/home/mitmproxy/.mitmproxy
     healthcheck:
-      test: ["CMD", "curl", "-sf", "http://localhost:8081/"]
+      test: ["CMD", "python3", "-c", "import socket; s=socket.create_connection(('localhost',8081),2); s.close()"]
       interval: 2s
       timeout: 5s
       retries: 15
@@ -20,13 +22,14 @@ services:
     cap_add:
       - NET_ADMIN   # required for iptables
     environment:
-      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
       - HTTP_PROXY=http://localhost:8080
       - HTTPS_PROXY=http://localhost:8080
       - NO_PROXY=localhost,127.0.0.1
     volumes:
       - ./app:/app
       - mitmproxy-certs:/certs:ro
+      - ./credentials.json:/credentials/.credentials.json:ro
 
 volumes:
   mitmproxy-certs:

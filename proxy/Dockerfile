@@ -7,4 +7,5 @@ CMD ["mitmweb", \
      "--mode", "transparent@8085", \
      "--web-host", "0.0.0.0", \
      "--web-port", "8081", \
-     "--set", "stream_large_bodies=1"]
+     "--set", "web_password=mitmproxy", \
+     "--verbose"]
