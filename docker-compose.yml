@@ -69,6 +69,16 @@ services:
       - mitmproxy-certs:/certs:ro
       - claude-code-home:/root
 
+  claude-api:
+    build: ./claude-api
+    profiles: ["api"]
+    environment:
+      - CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+    volumes:
+      - ./api-debug:/api-debug
+      - ./credentials.json:/credentials/.credentials.json:ro
+
 volumes:
   mitmproxy-certs:
   claude-code-home:
