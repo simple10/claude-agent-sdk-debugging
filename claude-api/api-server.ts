@@ -30,7 +30,7 @@ const skipHeaders = new Set(['host', 'connection', 'content-length', 'transfer-e
 function buildForwardingHeaders(bodyLength: number): Record<string, string> {
   const h: Record<string, string> = {}
   for (const [key, value] of Object.entries(template.headers)) {
-    if (skipHeaders.has(key)) continue
+    if (skipHeaders.has(key.toLowerCase())) continue
     // Replace redacted auth with real token
     if (key === 'authorization' || key === 'x-api-key') {
       h[authHeaderName] = authHeaderValue
