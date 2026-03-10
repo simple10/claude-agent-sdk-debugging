@@ -129,6 +129,7 @@ docker compose --profile api up --build
 # Test the api server
 curl -s http://localhost:4000/v1/messages \
     -H "Content-Type: application/json" \
+    -H "x-api-key: ${API_SERVER_KEY}" \
     -d '{
       "model": "claude-haiku-4-5",
       "max_tokens": 100,
