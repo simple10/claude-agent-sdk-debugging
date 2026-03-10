@@ -24,6 +24,9 @@ const serverKey = process.env.API_SERVER_KEY || ''
 const authHeaderName = template.headers['authorization'] ? 'authorization' : 'x-api-key'
 const authHeaderValue = authHeaderName === 'authorization' ? `Bearer ${authToken}` : authToken
 
+// Query params captured from the SDK (e.g. ?beta=true)
+const templateQueryParams: Record<string, string> = template.queryParams || {}
+
 // Headers to skip when building forwarding headers (connection-level or per-request)
 const skipHeaders = new Set(['host', 'connection', 'content-length', 'transfer-encoding'])
 
@@ -106,7 +109,11 @@ const server = Bun.serve({
       const bodyStr = mergeMessagesBody(callerBody)
       const headers = buildForwardingHeaders(Buffer.byteLength(bodyStr))
 
-      const resp = await fetch(`${ANTHROPIC_BASE}/v1/messages`, {
+      // Merge template query params with any caller-provided ones (caller overrides)
+      const queryStr = new URLSearchParams({ ...templateQueryParams, ...Object.fromEntries(url.searchParams) }).toString()
+      const targetUrl = queryStr ? `${ANTHROPIC_BASE}/v1/messages?${queryStr}` : `${ANTHROPIC_BASE}/v1/messages`
+
+      const resp = await fetch(targetUrl, {
         method: 'POST',
         headers,
         body: bodyStr,
@@ -161,3 +168,4 @@ console.log(`[api-server] Listening on http://localhost:${API_PORT}`)
 console.log(`[api-server] Auth validation: ${serverKey ? 'enabled' : 'disabled (no API_SERVER_KEY)'}`)
 console.log(`[api-server] Forwarding to: ${ANTHROPIC_BASE}`)
 console.log(`[api-server] Template auth header: ${authHeaderName}`)
+console.log(`[api-server] Template query params: ${JSON.stringify(templateQueryParams)}`)

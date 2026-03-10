@@ -25,9 +25,16 @@ const server = Bun.serve({
         }
       })
 
+      // Capture query params
+      const queryParams: Record<string, string> = {}
+      url.searchParams.forEach((value, key) => {
+        queryParams[key] = value
+      })
+
       const capturedRequest = {
         method: req.method,
         url: url.pathname,
+        queryParams,
         headers,
         body,
       }
