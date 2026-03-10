@@ -16,6 +16,7 @@ services:
       - --verbose
     ports:
       - "3000:3000"   # chat UI (runs in claude container, shared network)
+      - "4000:4000"   # API proxy (runs in claude-api container, shared network)
       - "8081:8081"   # mitmproxy web UI
     environment:
       - PYTHONUNBUFFERED=1
@@ -72,11 +73,22 @@ services:
   claude-api:
     build: ./claude-api
     profiles: ["api"]
+    network_mode: "service:proxy"
+    depends_on:
+      proxy:
+        condition: service_healthy
+    cap_add:
+      - NET_ADMIN
     environment:
       - CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - API_SERVER_KEY=${API_SERVER_KEY:-}
+      - HTTP_PROXY=http://localhost:8080
+      - HTTPS_PROXY=http://localhost:8080
+      - NO_PROXY=localhost,127.0.0.1
     volumes:
       - ./api-debug:/api-debug
+      - mitmproxy-certs:/certs:ro
       - ./credentials.json:/credentials/.credentials.json:ro
 
 volumes:
