@@ -109,3 +109,29 @@ The Claude Code CLI container uses a persistent Docker volume for `/root`, so yo
 ## Disabling SDK Telemetry
 
 The `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC` env var is enabled by default in `docker-compose.yml` to suppress SDK telemetry (Datadog, Sentry, etc.). Comment it out if you want to capture and inspect telemetry traffic too.
+
+## API Proxy Server
+
+This project provides an additional Anthropic API proxy container to use for local testing.
+
+On startup, it uses the Agent SDK to send an API request, capture it, and re-use the headers for
+additional API requests. API requests are logged in mitmproxy. The API server effectively mimics
+how the Agent SDK works but cuts out the middleman. Use at your own risk when using your Anthropic subscription.
+It's recommended to use an Anthropic API key.
+
+```bash
+# Start the core containers and the API container
+docker compose --profile api up
+
+# Optionally re-build the container to get the latest Agent SDK
+docker compose --profile api up --build
+
+# Test the api server
+curl -s http://localhost:4000/v1/messages \
+    -H "Content-Type: application/json" \
+    -d '{
+      "model": "claude-haiku-4-5",
+      "max_tokens": 100,
+      "messages": [{"role": "user", "content": "Say hello in exactly 3 words."}]
+    }'
+```

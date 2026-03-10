@@ -48,30 +48,26 @@ echo "==> Installing dependencies..."
 cd /capture
 bun install
 
-# --- Step 1: Capture SDK request template if needed ---
-if [ ! -f /api-debug/api.json ]; then
-  echo "==> No api.json found, running SDK capture..."
+# --- Step 1: Capture SDK request template ---
+echo "==> Running SDK capture..."
 
-  export ANTHROPIC_BASE_URL="http://localhost:9999"
+export ANTHROPIC_BASE_URL="http://localhost:9999"
 
-  bun run intercept-server.ts &
-  INTERCEPT_PID=$!
-  sleep 1
+bun run intercept-server.ts &
+INTERCEPT_PID=$!
+sleep 1
 
-  bun run capture.ts || true
-  sleep 1
+bun run capture.ts || true
+sleep 1
 
-  kill $INTERCEPT_PID 2>/dev/null || true
-  unset ANTHROPIC_BASE_URL
+kill $INTERCEPT_PID 2>/dev/null || true
+unset ANTHROPIC_BASE_URL
 
-  if [ -f /api-debug/api.json ]; then
-    echo "==> Captured API request template."
-  else
-    echo "ERROR: Failed to capture API request template"
-    exit 1
-  fi
+if [ -f /api-debug/api.json ]; then
+  echo "==> Captured API request template."
 else
-  echo "==> Using existing api.json template."
+  echo "ERROR: Failed to capture API request template"
+  exit 1
 fi
 
 # --- Step 2: Start API proxy server ---
