@@ -84,6 +84,11 @@ Includes a web-based chat interface for interacting with the Agent SDK, a Claude
 ├── claude/
 │   ├── Dockerfile        # Bun image + iptables + CA cert tools
 │   └── entrypoint.sh     # CA cert install, credentials, iptables, app launch
+├── claude-api/
+│   ├── api-server.ts     # API proxy with cache-control-auto & message fixes
+│   ├── intercept-server.ts # Captures SDK request template on startup
+│   ├── capture.ts        # Sends test query to capture SDK headers
+│   └── entrypoint.sh     # CA cert install, SDK capture, server launch
 ├── claude-code/
 │   ├── Dockerfile        # Node 22 image + Claude Code CLI
 │   └── entrypoint.sh     # CA cert install, iptables, exec claude
@@ -136,3 +141,26 @@ curl -s http://localhost:4000/v1/messages \
       "messages": [{"role": "user", "content": "Say hello in exactly 3 words."}]
     }'
 ```
+
+### Cache Control Auto
+
+Use the `/cache-control-auto` path prefix to have the proxy automatically inject prompt caching breakpoints. This is useful for clients that don't manage their own cache control and want optimal caching without any code changes.
+
+```
+ANTHROPIC_BASE_URL=http://proxy:4000/cache-control-auto
+```
+
+When this route is used, the proxy adds `cache_control: {"type": "ephemeral"}` breakpoints at:
+
+- **`system[-1]`** — last system message block
+- **`tools[-1]`** — last tool definition
+- **`messages[-2]`** and **`messages[-3]`** — second and third-to-last messages for conversation caching with retry resilience
+
+If the conversation has fewer than 2 messages, the breakpoint is placed on the only available message.
+
+### Message Fixes
+
+The proxy automatically fixes common issues from third-party clients regardless of which route is used:
+
+- **tool_result ordering** — Reorders user messages so `tool_result` blocks appear before `text` blocks, preventing 400 errors from the Anthropic API.
+- **system cache_control stripping** — Removes `cache_control` from the captured template's system messages to avoid inheriting stale breakpoints.

@@ -72,12 +72,79 @@ function validateApiKey(req: Request): Response | null {
   return null
 }
 
-function mergeMessagesBody(callerBody: Record<string, unknown>): string {
+function stripCacheControl(blocks: any[]): any[] {
+  return blocks.map(({ cache_control, ...rest }: any) => rest)
+}
+
+function fixToolResultOrder(messages: any[]): any[] {
+  return messages.map((msg: any, i: number) => {
+    if (msg.role !== 'user' || !Array.isArray(msg.content)) return msg
+    const toolResults = msg.content.filter((b: any) => b.type === 'tool_result')
+    if (toolResults.length === 0) return msg
+    const others = msg.content.filter((b: any) => b.type !== 'tool_result')
+    const firstType = msg.content[0]?.type
+    if (firstType !== 'tool_result') {
+      console.log(`[api] Fixed tool_result order in messages[${i}] (moved ${toolResults.length} tool_result(s) before ${others.length} other block(s))`)
+    }
+    return { ...msg, content: [...toolResults, ...others] }
+  })
+}
+
+function applyCacheControlAuto(body: Record<string, unknown>): Record<string, unknown> {
+  const result = { ...body }
+
+  // 1. Add cache_control on system[-1]
+  const sys = result.system as any[]
+  if (Array.isArray(sys) && sys.length > 0) {
+    result.system = [...sys]
+    ;(result.system as any[])[sys.length - 1] = { ...sys[sys.length - 1], cache_control: { type: 'ephemeral' } }
+  }
+
+  // 2. Add cache_control on tools[-1]
+  const tools = result.tools as any[]
+  if (Array.isArray(tools) && tools.length > 0) {
+    result.tools = [...tools]
+    ;(result.tools as any[])[tools.length - 1] = { ...tools[tools.length - 1], cache_control: { type: 'ephemeral' } }
+  }
+
+  // 3. Add cache_control on messages[-2] and messages[-3] for retry resilience
+  const msgs = result.messages as any[]
+  if (Array.isArray(msgs) && msgs.length > 0) {
+    result.messages = msgs.map((m: any) => ({ ...m }))
+    const addCacheBreakpoint = (idx: number) => {
+      const msg = (result.messages as any[])[idx]
+      if (Array.isArray(msg.content) && msg.content.length > 0) {
+        const content = [...msg.content]
+        content[content.length - 1] = { ...content[content.length - 1], cache_control: { type: 'ephemeral' } }
+        ;(result.messages as any[])[idx] = { ...msg, content }
+      } else if (typeof msg.content === 'string') {
+        ;(result.messages as any[])[idx] = {
+          ...msg,
+          content: [{ type: 'text', text: msg.content, cache_control: { type: 'ephemeral' } }],
+        }
+      }
+    }
+
+    if (msgs.length >= 2) {
+      addCacheBreakpoint(msgs.length - 2)
+      if (msgs.length >= 3) {
+        addCacheBreakpoint(msgs.length - 3)
+      }
+    } else {
+      // Only 1 message — cache it
+      addCacheBreakpoint(0)
+    }
+  }
+
+  return result
+}
+
+function mergeMessagesBody(callerBody: Record<string, unknown>): Record<string, unknown> {
   // Start with the caller's body as the base
   const merged: Record<string, unknown> = { ...callerBody }
 
-  // System: always prepend template's system messages, then caller's
-  const templateSystem = template.body.system || []
+  // System: always prepend template's system messages (stripped of cache_control), then caller's
+  const templateSystem = stripCacheControl(template.body.system || [])
   if (callerBody.system) {
     const callerSystem = Array.isArray(callerBody.system)
       ? callerBody.system
@@ -87,26 +154,40 @@ function mergeMessagesBody(callerBody: Record<string, unknown>): string {
     merged.system = templateSystem
   }
 
+  // Fix tool_result ordering in messages (some clients send them after text blocks)
+  if (Array.isArray(merged.messages)) {
+    merged.messages = fixToolResultOrder(merged.messages as any[])
+  }
+
   // Metadata: always preserve template's
   merged.metadata = template.body.metadata
 
-  return JSON.stringify(merged)
+  return merged
 }
 
 const server = Bun.serve({
   port: API_PORT,
   async fetch(req) {
     const url = new URL(req.url)
-    console.log(`[api] ${req.method} ${url.pathname}`)
+
+    // Detect /cache-control-auto prefix
+    const cacheControlAuto = url.pathname.startsWith('/cache-control-auto')
+    const effectivePath = cacheControlAuto ? url.pathname.slice('/cache-control-auto'.length) : url.pathname
+
+    console.log(`[api] ${req.method} ${url.pathname}${cacheControlAuto ? ' (cache-control-auto)' : ''}`)
 
     // Validate caller's API key
     const authErr = validateApiKey(req)
     if (authErr) return authErr
 
     // POST /v1/messages — merge with template and forward
-    if (url.pathname === '/v1/messages' && req.method === 'POST') {
+    if (effectivePath === '/v1/messages' && req.method === 'POST') {
       const callerBody = await req.json() as Record<string, unknown>
-      const bodyStr = mergeMessagesBody(callerBody)
+      let merged = mergeMessagesBody(callerBody)
+      if (cacheControlAuto) {
+        merged = applyCacheControlAuto(merged)
+      }
+      const bodyStr = JSON.stringify(merged)
       const headers = buildForwardingHeaders(Buffer.byteLength(bodyStr))
 
       // Merge template query params with any caller-provided ones (caller overrides)
@@ -136,7 +217,7 @@ const server = Bun.serve({
     }
 
     // All other /v1/* endpoints — simple proxy
-    if (url.pathname.startsWith('/v1/')) {
+    if (effectivePath.startsWith('/v1/')) {
       const headers = buildSimpleHeaders()
       const fetchOpts: RequestInit = {
         method: req.method,
@@ -149,7 +230,7 @@ const server = Bun.serve({
         ;(headers as Record<string, string>)['content-length'] = String(Buffer.byteLength(body))
       }
 
-      const resp = await fetch(`${ANTHROPIC_BASE}${url.pathname}${url.search}`, fetchOpts)
+      const resp = await fetch(`${ANTHROPIC_BASE}${effectivePath}${url.search}`, fetchOpts)
 
       return new Response(resp.body, {
         status: resp.status,
