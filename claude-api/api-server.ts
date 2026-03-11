@@ -90,35 +90,41 @@ function fixToolResultOrder(messages: any[]): any[] {
   })
 }
 
-function hasEphemeralCacheControl(block: any): boolean {
-  return block?.cache_control?.type === 'ephemeral'
+const CACHE_1H = { type: 'ephemeral', ttl: '1h' } as const
+const CACHE_5M = { type: 'ephemeral' } as const
+
+function hasCacheControl(block: any, expected: typeof CACHE_1H | typeof CACHE_5M): boolean {
+  const cc = block?.cache_control
+  if (!cc || cc.type !== 'ephemeral') return false
+  if ('ttl' in expected) return cc.ttl === expected.ttl
+  return !cc.ttl // 5m = no ttl field
 }
 
 function applyCacheControlAuto(body: Record<string, unknown>): Record<string, unknown> {
   const result = { ...body }
   const changes: string[] = []
 
-  // 1. Add cache_control on system[-1]
+  // 1. Add cache_control (1hr) on system[-1]
   const sys = result.system as any[]
   if (Array.isArray(sys) && sys.length > 0) {
-    if (!hasEphemeralCacheControl(sys[sys.length - 1])) {
+    if (!hasCacheControl(sys[sys.length - 1], CACHE_1H)) {
       result.system = [...sys]
-      ;(result.system as any[])[sys.length - 1] = { ...sys[sys.length - 1], cache_control: { type: 'ephemeral' } }
-      changes.push(`system[${sys.length - 1}]`)
+      ;(result.system as any[])[sys.length - 1] = { ...sys[sys.length - 1], cache_control: CACHE_1H }
+      changes.push(`system[${sys.length - 1}] (1h)`)
     }
   }
 
-  // 2. Add cache_control on tools[-1]
+  // 2. Add cache_control (1hr) on tools[-1]
   const tools = result.tools as any[]
   if (Array.isArray(tools) && tools.length > 0) {
-    if (!hasEphemeralCacheControl(tools[tools.length - 1])) {
+    if (!hasCacheControl(tools[tools.length - 1], CACHE_1H)) {
       result.tools = [...tools]
-      ;(result.tools as any[])[tools.length - 1] = { ...tools[tools.length - 1], cache_control: { type: 'ephemeral' } }
-      changes.push(`tools[${tools.length - 1}]`)
+      ;(result.tools as any[])[tools.length - 1] = { ...tools[tools.length - 1], cache_control: CACHE_1H }
+      changes.push(`tools[${tools.length - 1}] (1h)`)
     }
   }
 
-  // 3. Add cache_control on messages[-2] and messages[-3] for retry resilience
+  // 3. Add cache_control (5m) on messages[-2] and messages[-3] for retry resilience
   const msgs = result.messages as any[]
   if (Array.isArray(msgs) && msgs.length > 0) {
     result.messages = msgs.map((m: any) => ({ ...m }))
@@ -126,18 +132,18 @@ function applyCacheControlAuto(body: Record<string, unknown>): Record<string, un
       const msg = (result.messages as any[])[idx]
       if (Array.isArray(msg.content) && msg.content.length > 0) {
         const lastBlock = msg.content[msg.content.length - 1]
-        if (!hasEphemeralCacheControl(lastBlock)) {
+        if (!hasCacheControl(lastBlock, CACHE_5M)) {
           const content = [...msg.content]
-          content[content.length - 1] = { ...content[content.length - 1], cache_control: { type: 'ephemeral' } }
+          content[content.length - 1] = { ...content[content.length - 1], cache_control: CACHE_5M }
           ;(result.messages as any[])[idx] = { ...msg, content }
-          changes.push(`messages[${idx}]`)
+          changes.push(`messages[${idx}] (5m)`)
         }
       } else if (typeof msg.content === 'string') {
         ;(result.messages as any[])[idx] = {
           ...msg,
-          content: [{ type: 'text', text: msg.content, cache_control: { type: 'ephemeral' } }],
+          content: [{ type: 'text', text: msg.content, cache_control: CACHE_5M }],
         }
-        changes.push(`messages[${idx}]`)
+        changes.push(`messages[${idx}] (5m)`)
       }
     }
 
