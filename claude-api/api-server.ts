@@ -90,21 +90,32 @@ function fixToolResultOrder(messages: any[]): any[] {
   })
 }
 
+function hasEphemeralCacheControl(block: any): boolean {
+  return block?.cache_control?.type === 'ephemeral'
+}
+
 function applyCacheControlAuto(body: Record<string, unknown>): Record<string, unknown> {
   const result = { ...body }
+  const changes: string[] = []
 
   // 1. Add cache_control on system[-1]
   const sys = result.system as any[]
   if (Array.isArray(sys) && sys.length > 0) {
-    result.system = [...sys]
-    ;(result.system as any[])[sys.length - 1] = { ...sys[sys.length - 1], cache_control: { type: 'ephemeral' } }
+    if (!hasEphemeralCacheControl(sys[sys.length - 1])) {
+      result.system = [...sys]
+      ;(result.system as any[])[sys.length - 1] = { ...sys[sys.length - 1], cache_control: { type: 'ephemeral' } }
+      changes.push(`system[${sys.length - 1}]`)
+    }
   }
 
   // 2. Add cache_control on tools[-1]
   const tools = result.tools as any[]
   if (Array.isArray(tools) && tools.length > 0) {
-    result.tools = [...tools]
-    ;(result.tools as any[])[tools.length - 1] = { ...tools[tools.length - 1], cache_control: { type: 'ephemeral' } }
+    if (!hasEphemeralCacheControl(tools[tools.length - 1])) {
+      result.tools = [...tools]
+      ;(result.tools as any[])[tools.length - 1] = { ...tools[tools.length - 1], cache_control: { type: 'ephemeral' } }
+      changes.push(`tools[${tools.length - 1}]`)
+    }
   }
 
   // 3. Add cache_control on messages[-2] and messages[-3] for retry resilience
@@ -114,14 +125,19 @@ function applyCacheControlAuto(body: Record<string, unknown>): Record<string, un
     const addCacheBreakpoint = (idx: number) => {
       const msg = (result.messages as any[])[idx]
       if (Array.isArray(msg.content) && msg.content.length > 0) {
-        const content = [...msg.content]
-        content[content.length - 1] = { ...content[content.length - 1], cache_control: { type: 'ephemeral' } }
-        ;(result.messages as any[])[idx] = { ...msg, content }
+        const lastBlock = msg.content[msg.content.length - 1]
+        if (!hasEphemeralCacheControl(lastBlock)) {
+          const content = [...msg.content]
+          content[content.length - 1] = { ...content[content.length - 1], cache_control: { type: 'ephemeral' } }
+          ;(result.messages as any[])[idx] = { ...msg, content }
+          changes.push(`messages[${idx}]`)
+        }
       } else if (typeof msg.content === 'string') {
         ;(result.messages as any[])[idx] = {
           ...msg,
           content: [{ type: 'text', text: msg.content, cache_control: { type: 'ephemeral' } }],
         }
+        changes.push(`messages[${idx}]`)
       }
     }
 
@@ -134,6 +150,10 @@ function applyCacheControlAuto(body: Record<string, unknown>): Record<string, un
       // Only 1 message — cache it
       addCacheBreakpoint(0)
     }
+  }
+
+  if (changes.length > 0) {
+    console.log(`[api] Added cache_control breakpoints: ${changes.join(', ')}`)
   }
 
   return result
