@@ -100,7 +100,7 @@ function hasCacheControl(block: any, expected: typeof CACHE_1H | typeof CACHE_5M
   return !cc.ttl // 5m = no ttl field
 }
 
-function applyCacheControlAuto(body: Record<string, unknown>): Record<string, unknown> {
+function applyCacheControlMax(body: Record<string, unknown>): Record<string, unknown> {
   const result = { ...body }
   const changes: string[] = []
 
@@ -196,11 +196,13 @@ const server = Bun.serve({
   async fetch(req) {
     const url = new URL(req.url)
 
-    // Detect /cache-control-auto prefix
-    const cacheControlAuto = url.pathname.startsWith('/cache-control-auto')
-    const effectivePath = cacheControlAuto ? url.pathname.slice('/cache-control-auto'.length) : url.pathname
+    // Detect cache-control route prefixes
+    const cacheControlMax = url.pathname.startsWith('/cache-control-max')
+    const cacheControlAuto = !cacheControlMax && url.pathname.startsWith('/cache-control-auto')
+    const cachePrefix = cacheControlMax ? '/cache-control-max' : cacheControlAuto ? '/cache-control-auto' : ''
+    const effectivePath = cachePrefix ? url.pathname.slice(cachePrefix.length) : url.pathname
 
-    console.log(`[api] ${req.method} ${url.pathname}${cacheControlAuto ? ' (cache-control-auto)' : ''}`)
+    console.log(`[api] ${req.method} ${url.pathname}${cachePrefix ? ` (${cachePrefix.slice(1)})` : ''}`)
 
     // Validate caller's API key
     const authErr = validateApiKey(req)
@@ -210,8 +212,13 @@ const server = Bun.serve({
     if (effectivePath === '/v1/messages' && req.method === 'POST') {
       const callerBody = await req.json() as Record<string, unknown>
       let merged = mergeMessagesBody(callerBody)
-      if (cacheControlAuto) {
-        merged = applyCacheControlAuto(merged)
+      if (cacheControlMax) {
+        merged = applyCacheControlMax(merged)
+      } else if (cacheControlAuto) {
+        if (!merged.cache_control) {
+          merged.cache_control = CACHE_5M
+          console.log('[api] Added top-level cache_control (auto)')
+        }
       }
       const bodyStr = JSON.stringify(merged)
       const headers = buildForwardingHeaders(Buffer.byteLength(bodyStr))

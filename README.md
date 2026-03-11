@@ -142,21 +142,31 @@ curl -s http://localhost:4000/v1/messages \
     }'
 ```
 
-### Cache Control Auto
+### Cache Control Routes
 
-Use the `/cache-control-auto` path prefix to have the proxy automatically inject prompt caching breakpoints. This is useful for clients that don't manage their own cache control and want optimal caching without any code changes.
+Two path prefixes are available for automatic prompt caching:
+
+#### `/cache-control-auto` — top-level automatic caching
+
+Adds `cache_control: {"type": "ephemeral"}` to the top level of the request body, letting the API decide optimal breakpoint placement.
 
 ```
-ANTHROPIC_BASE_URL=http://proxy:4000/cache-control-auto
+ANTHROPIC_BASE_URL=http://localhost:4000/cache-control-auto
 ```
 
-When this route is used, the proxy adds `cache_control: {"type": "ephemeral"}` breakpoints at:
+#### `/cache-control-max` — explicit breakpoint caching
 
-- **`system[-1]`** — last system message block
-- **`tools[-1]`** — last tool definition
-- **`messages[-2]`** and **`messages[-3]`** — second and third-to-last messages for conversation caching with retry resilience
+Injects block-level `cache_control` breakpoints for maximum caching with mixed TTLs:
 
-If the conversation has fewer than 2 messages, the breakpoint is placed on the only available message.
+```
+ANTHROPIC_BASE_URL=http://localhost:4000/cache-control-max
+```
+
+- **`system[-1]`** — last system message block (1hr TTL)
+- **`tools[-1]`** — last tool definition (1hr TTL)
+- **`messages[-2]`** and **`messages[-3]`** — second and third-to-last messages for conversation caching with retry resilience (5m TTL)
+
+If the conversation has fewer than 2 messages, the breakpoint is placed on the only available message. Breakpoints are only added where not already present.
 
 ### Message Fixes
 
